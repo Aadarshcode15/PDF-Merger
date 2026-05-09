@@ -340,57 +340,58 @@ class PDFMerger {
             this.mergeBtn.classList.add('loading');
             this.mergeBtn.disabled = true;
 
-            // Create new PDF document
             const preserveBookmarks = document.getElementById('preserveBookmarks').checked;
             const mergedPdf = await PDFLib.PDFDocument.create();
 
-            this.updateProgress(25, 'Preparing to merge...');
+            const pdf1Count = this.pdf1.doc.getPageCount();
+            const pdf2Count = this.pdf2.doc.getPageCount();
+            const totalPages = pdf1Count + pdf2Count;
+            let copiedPages = 0;
 
-            // Copy pages from first PDF
-            const pdf1PageCount = this.pdf1.doc.getPageCount();
-            const pdf1Indices = Array.from({ length: pdf1PageCount }, (_, i) => i);
-            const pdf1Pages = await mergedPdf.copyPages(this.pdf1.doc, pdf1Indices);
+            this.updateProgress(0, 'Starting merge...');
 
-            this.updateProgress(50, 'Adding pages from first PDF...');
+            // Copy pages from first PDF one by one for real progress
+            for (let i = 0; i < pdf1Count; i++) {
+                const [page] = await mergedPdf.copyPages(this.pdf1.doc, [i]);
+                mergedPdf.addPage(page);
+                copiedPages++;
+                const percent = Math.round((copiedPages / totalPages) * 85); // up to 85%
+                this.updateProgress(
+                    percent,
+                    `Copying page ${copiedPages} of ${totalPages}...`
+                );
+            }
 
-            pdf1Pages.forEach((page) => mergedPdf.addPage(page));
-
-            // Copy pages from second PDF
-            const pdf2PageCount = this.pdf2.doc.getPageCount();
-            const pdf2Indices = Array.from({ length: pdf2PageCount }, (_, i) => i);
-            const pdf2Pages = await mergedPdf.copyPages(this.pdf2.doc, pdf2Indices);
-
-            this.updateProgress(75, 'Adding pages from second PDF...');
-
-            pdf2Pages.forEach((page) => mergedPdf.addPage(page));
+            // Copy pages from second PDF one by one
+            for (let i = 0; i < pdf2Count; i++) {
+                const [page] = await mergedPdf.copyPages(this.pdf2.doc, [i]);
+                mergedPdf.addPage(page);
+                copiedPages++;
+                const percent = Math.round((copiedPages / totalPages) * 85);
+                this.updateProgress(
+                    percent,
+                    `Copying page ${copiedPages} of ${totalPages}...`
+                );
+            }
 
             this.updateProgress(90, 'Finalizing merged PDF...');
 
-            // Copy bookmarks/outlines if requested
+            // Preserve bookmarks (best-effort, first PDF only)
             if (preserveBookmarks) {
                 try {
                     const outline1 = this.pdf1.doc.catalog.lookupMaybe(
                         PDFLib.PDFName.of('Outlines'), PDFLib.PDFDict
                     );
-                    const outline2 = this.pdf2.doc.catalog.lookupMaybe(
-                        PDFLib.PDFName.of('Outlines'), PDFLib.PDFDict
-                    );
-
-                    // Copy first PDF's outline if it exists
                     if (outline1) {
-                        const [copiedOutline] = await mergedPdf.copyPages(this.pdf1.doc, []);
                         const outlineRef = await mergedPdf.context.obj(outline1);
                         mergedPdf.catalog.set(PDFLib.PDFName.of('Outlines'), outlineRef);
                     }
                 } catch (outlineError) {
-                    // Bookmarks are best-effort — don't fail the whole merge
                     console.warn('Could not copy bookmarks:', outlineError);
                 }
             }
 
-            // Generate the final PDF
             this.mergedPdfBytes = await mergedPdf.save();
-
             this.updateProgress(100, 'PDF merged successfully!');
 
             setTimeout(() => {
@@ -398,7 +399,7 @@ class PDFMerger {
                 this.showResult();
                 this.mergeBtn.classList.remove('loading');
                 this.mergeBtn.disabled = false;
-            }, 1000);
+            }, 800);
 
         } catch (error) {
             this.hideProgress();
