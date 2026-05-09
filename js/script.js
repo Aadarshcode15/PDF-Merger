@@ -271,13 +271,32 @@ class PDFMerger {
         const pageCount = pdfDoc.getPageCount();
         const fileSize = this.formatFileSize(file.size);
 
-        infoElement.innerHTML = `
-            <i class="fas fa-file-pdf" style="color: #e74c3c; margin-right: 8px;"></i>
-            <strong>${file.name}</strong><br>
-            <span style="color: var(--text-secondary);">
-                ${pageCount} page${pageCount !== 1 ? 's' : ''} • ${fileSize}
-            </span>
-        `;
+        // Clear previous content
+        infoElement.innerHTML = '';
+
+        // Icon
+        const icon = document.createElement('i');
+        icon.className = 'fas fa-file-pdf';
+        icon.style.cssText = 'color: #e74c3c; margin-right: 8px;';
+        icon.setAttribute('aria-hidden', 'true');
+
+        // Filename — textContent ensures it's never parsed as HTML
+        const nameEl = document.createElement('strong');
+        nameEl.textContent = file.name;
+
+        // Line break
+        const br = document.createElement('br');
+
+        // Page count + size
+        const metaEl = document.createElement('span');
+        metaEl.style.color = 'var(--text-secondary)';
+        metaEl.textContent = `${pageCount} page${pageCount !== 1 ? 's' : ''} • ${fileSize}`;
+
+        infoElement.appendChild(icon);
+        infoElement.appendChild(nameEl);
+        infoElement.appendChild(br);
+        infoElement.appendChild(metaEl);
+
         infoElement.classList.add('show');
     }
 
