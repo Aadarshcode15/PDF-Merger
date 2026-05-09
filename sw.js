@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pdf-merger-v1';
+const CACHE_NAME = 'pdf-merger-v2';
 
 const STATIC_ASSETS = [
     './',
