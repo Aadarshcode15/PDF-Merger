@@ -1,59 +1,41 @@
 class PDFMerger {
     constructor() {
-        this.pdfs = [];       // { doc, file } for each loaded PDF
-        this.slotCount = 0;   // increments for unique slot IDs
+        this.pdfs = [];
+        this.slotCount = 0;
         this.mergedPdfBytes = null;
-
-        this.waitForPDFLib().then(() => {
-            this.initializeElements();
-            this.bindEvents();
-            this.addSlot();   // first slot
-            this.addSlot();   // second slot
-        });
     }
 
-    async waitForPDFLib() {
-        let attempts = 0;
-        while (typeof PDFLib === 'undefined' && attempts < 50) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-            attempts++;
-        }
-        if (typeof PDFLib === 'undefined') {
-            throw new Error('PDF-lib library failed to load');
-        }
-    }
-
-    initializeElements() {
+    init() {
         this.uploadSection = document.getElementById('uploadSection');
-        this.mergeBtn = document.getElementById('mergeBtn');
-        this.clearBtn = document.getElementById('clearBtn');
-        this.downloadBtn = document.getElementById('downloadBtn');
+        this.mergeBtn      = document.getElementById('mergeBtn');
+        this.clearBtn      = document.getElementById('clearBtn');
+        this.downloadBtn   = document.getElementById('downloadBtn');
         this.filenameInput = document.getElementById('filename');
         this.progressSection = document.getElementById('progressSection');
-        this.progressFill = document.getElementById('progressFill');
-        this.progressText = document.getElementById('progressText');
-        this.resultSection = document.getElementById('resultSection');
-        this.addFileBtn = document.getElementById('addFileBtn');
-    }
+        this.progressFill    = document.getElementById('progressFill');
+        this.progressText    = document.getElementById('progressText');
+        this.resultSection   = document.getElementById('resultSection');
+        this.addFileBtn      = document.getElementById('addFileBtn');
 
-    bindEvents() {
-        this.mergeBtn.addEventListener('click', () => this.mergePDFs());
-        this.clearBtn.addEventListener('click', () => this.clearAll());
-        this.downloadBtn.addEventListener('click', () => this.downloadMergedPDF());
-        this.addFileBtn.addEventListener('click', () => this.addSlot());
+        this.mergeBtn.addEventListener('click',     () => this.mergePDFs());
+        this.clearBtn.addEventListener('click',     () => this.clearAll());
+        this.downloadBtn.addEventListener('click',  () => this.downloadMergedPDF());
+        this.addFileBtn.addEventListener('click',   () => this.addSlot());
+
+        this.addSlot();
+        this.addSlot();
     }
 
     // --- Slot management ---
 
     addSlot() {
         const id = this.slotCount++;
-        this.pdfs.push(null);   // placeholder at index id
+        this.pdfs.push(null);
 
         const row = document.createElement('div');
         row.className = 'slot-row';
         row.dataset.slotId = id;
 
-        // Drop zone label
         const label = document.createElement('label');
         label.htmlFor = `pdf-slot-${id}`;
         label.className = 'file-label';
@@ -79,12 +61,10 @@ class PDFMerger {
         label.appendChild(span);
         label.appendChild(input);
 
-        // File info strip
         const info = document.createElement('div');
         info.className = 'file-info';
         info.id = `file-info-${id}`;
 
-        // Remove button (hidden on first two slots until a 3rd exists)
         const removeBtn = document.createElement('button');
         removeBtn.className = 'slot-remove';
         removeBtn.title = 'Remove this slot';
@@ -113,7 +93,6 @@ class PDFMerger {
         this.updateMergeButton();
     }
 
-    // Hide remove buttons when only 2 slots remain
     syncRemoveButtons() {
         const rows = this.uploadSection.querySelectorAll('.slot-row');
         rows.forEach(row => {
@@ -162,9 +141,7 @@ class PDFMerger {
             this.showError('Selected file is empty.');
             return;
         }
-
         this.showLoadingState(id);
-
         try {
             await this.loadPDF(file, id);
         } catch (error) {
@@ -225,7 +202,7 @@ class PDFMerger {
         return sig.every((byte, i) => uint8Array[i] === byte);
     }
 
-    // --- UI state helpers ---
+    // --- UI helpers ---
 
     showLoadingState(id) {
         const label = this.uploadSection.querySelector(`[data-slot-id="${id}"] .file-label`);
@@ -259,7 +236,6 @@ class PDFMerger {
     updateFileInfo(id, file, pdfDoc) {
         const info = document.getElementById(`file-info-${id}`);
         if (!info) return;
-
         info.innerHTML = '';
 
         const icon = document.createElement('i');
@@ -316,7 +292,6 @@ class PDFMerger {
             this.showError('Please select at least two PDF files before merging.');
             return;
         }
-
         try {
             this.showProgress();
             this.mergeBtn.classList.add('loading');
@@ -324,7 +299,6 @@ class PDFMerger {
 
             const preserveBookmarks = document.getElementById('preserveBookmarks').checked;
             const mergedPdf = await PDFLib.PDFDocument.create();
-
             const totalPages = loadedPdfs.reduce((sum, p) => sum + p.doc.getPageCount(), 0);
             let copiedPages = 0;
 
@@ -349,7 +323,7 @@ class PDFMerger {
                         PDFLib.PDFName.of('Outlines'), PDFLib.PDFDict
                     );
                     if (outline) {
-                        const outlineRef = await mergedPdf.context.obj(outline);
+                        const outlineRef = mergedPdf.context.obj(outline);
                         mergedPdf.catalog.set(PDFLib.PDFName.of('Outlines'), outlineRef);
                     }
                 } catch (e) {
@@ -375,8 +349,6 @@ class PDFMerger {
             this.showError('Failed to merge PDFs. Please try again.');
         }
     }
-
-    // --- Progress & result ---
 
     showProgress() {
         this.progressSection.style.display = 'block';
@@ -465,18 +437,16 @@ class PDFMerger {
         toast.appendChild(icon);
         toast.appendChild(text);
         document.body.appendChild(toast);
-
         setTimeout(() => {
             if (toast.parentNode) toast.parentNode.removeChild(toast);
         }, 5000);
     }
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-    try {
-        new PDFMerger();
-    } catch (error) {
-        console.error('Failed to initialize PDF Merger:', error);
+// Clean, synchronous init — no async wrapper needed since pdf-lib
+// is already loaded via <script> in <head> before this file runs
+document.addEventListener('DOMContentLoaded', () => {
+    if (typeof PDFLib === 'undefined') {
         document.body.innerHTML = `
             <div style="text-align:center;padding:50px;color:#dc3545;font-family:Arial,sans-serif;">
                 <h2>Error Loading PDF Merger</h2>
@@ -486,5 +456,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </button>
             </div>
         `;
+        return;
     }
+    const app = new PDFMerger();
+    app.init();
 });
