@@ -1,110 +1,202 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF Merger - Combine PDFs Online</title>
+    <title>PDF Merger — Combine PDFs Online</title>
     <link rel="stylesheet" href="css/style.css">
     <link rel="icon" type="image/png" href="pdflogo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
         crossorigin="anonymous" referrerpolicy="no-referrer" />
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js" crossorigin="anonymous"
-        referrerpolicy="no-referrer">
-        </script>
-
-    <meta name="description"
-        content="Merge two PDF files into one easily with our online PDF Merger. Preserve bookmarks and customize output filename.">
-    <meta name="keywords" content="PDF Merger, Combine PDFs, Merge PDF Files, Online PDF Tool, PDF Utilities">
-    <meta name="Aadarsh Patil" content="AG CREATIONS">
+    <!-- pdf-lib -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <meta name="description" content="Merge PDF files instantly and securely in your browser.">
 </head>
-
 <body>
-    <div class="container">
-        <header>
-            <h1><i class="fas fa-file-pdf"></i> PDF Merger</h1>
-            <p>Combine two PDF files into one seamlessly</p>
-        </header>
 
-        <main>
-            <div class="upload-section" id="uploadSection">
-                <!-- slots are rendered dynamically by JS -->
+<!-- Particle canvas -->
+<canvas id="particles-canvas"></canvas>
+
+<div class="container">
+
+    <header>
+        <div class="header-badge">
+            <span class="dot"></span>
+            Client-side · Private · Instant
+        </div>
+        <h1>
+            <span class="title-pdf">PDF</span>
+            <span class="title-merger">Merger</span>
+        </h1>
+        <p>Combine multiple PDFs into one — entirely in your browser</p>
+    </header>
+
+    <main>
+        <div class="upload-section" id="uploadSection">
+            <!-- slots rendered by JS -->
+        </div>
+
+        <div class="add-btn-wrap">
+            <button id="addFileBtn" class="add-file-btn">
+                <i class="fas fa-plus"></i> Add another PDF
+            </button>
+        </div>
+
+        <div class="options-section">
+            <h3>Options</h3>
+            <div class="option-group">
+                <label for="filename">Output filename</label>
+                <input type="text" id="filename" placeholder="merged-document" value="merged-document">
             </div>
-            <div style="text-align: center; margin-bottom: 30px;">
-                <button id="addFileBtn" class="add-file-btn">
-                    <i class="fas fa-plus"></i> Add another PDF
+            <div class="option-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="preserveBookmarks" checked>
+                    <span class="custom-check"></span>
+                    <span>Preserve bookmarks <small>(from first PDF)</small></span>
+                </label>
+            </div>
+        </div>
+
+        <div class="action-section">
+            <button id="mergeBtn" class="merge-btn" disabled>
+                <i class="fas fa-layer-group"></i>
+                Merge PDFs
+            </button>
+            <button id="clearBtn" class="clear-btn">
+                <i class="fas fa-rotate-left"></i>
+                Reset
+            </button>
+        </div>
+
+        <div class="progress-section" id="progressSection" style="display:none;">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <p id="progressText">Starting merge…</p>
+        </div>
+
+        <div class="result-section" id="resultSection" style="display:none;">
+            <div class="success-message">
+                <i class="fas fa-circle-check"></i>
+                <h3>Merged successfully</h3>
+                <button id="downloadBtn" class="download-btn">
+                    <i class="fas fa-arrow-down"></i>
+                    Download PDF
                 </button>
             </div>
+        </div>
+    </main>
 
-            <div class="options-section">
-                <h3>Merge Options</h3>
-                <div class="option-group">
-                    <label for="filename">Output filename:</label>
-                    <input type="text" id="filename" placeholder="merged-document" value="merged-document">
-                </div>
-                <div class="option-group">
-                    <label>
-                        <input type="checkbox" id="preserveBookmarks" checked>
-                        Preserve bookmarks <small style="color: var(--text-secondary); font-weight: 400;">(from first
-                            PDF)</small>
-                    </label>
-                </div>
+    <footer>
+        <div class="footer-content">
+            <p>All processing happens locally — your files never leave your device.</p>
+            <div class="brand-signature">
+                <span class="ag-brand">AG Creations</span>
             </div>
+        </div>
+    </footer>
 
-            <div class="action-section">
-                <button id="mergeBtn" class="merge-btn" disabled>
-                    <i class="fas fa-magic"></i>
-                    Merge PDFs
-                </button>
-                <button id="clearBtn" class="clear-btn">
-                    <i class="fas fa-trash"></i>
-                    Clear All
-                </button>
-            </div>
+</div>
 
-            <div class="progress-section" id="progressSection" style="display: none;">
-                <div class="progress-bar">
-                    <div class="progress-fill" id="progressFill"></div>
-                </div>
-                <p id="progressText">Merging PDFs...</p>
-            </div>
+<script src="js/script.js"></script>
 
-            <div class="result-section" id="resultSection" style="display: none;">
-                <div class="success-message">
-                    <i class="fas fa-check-circle"></i>
-                    <h3>PDFs Merged Successfully!</h3>
-                    <button id="downloadBtn" class="download-btn">
-                        <i class="fas fa-download"></i>
-                        Download Merged PDF
-                    </button>
-                </div>
-            </div>
-        </main>
+<!-- Particle system -->
+<script>
+(function() {
+    const canvas = document.getElementById('particles-canvas');
+    const ctx = canvas.getContext('2d');
+    let W, H, particles = [];
 
-        <footer>
-            <div class="footer-content">
-                <p>© 2025 PDF Merger. Built with ❤️ for productivity.</p>
-                <div class="brand-signature">
-                    <span>🔥 </span>
-                    <span class="ag-brand"> AG CREATIONS </span>
-                    <span> 🔥</span>
-                </div>
-            </div>
-        </footer>
-    </div>
+    const COLORS = ['#4a9eff','#00e5ff','#a855f7','#f472b6','#22d3a0'];
 
-    <script src="js/script.js"></script>
+    function resize() {
+        W = canvas.width  = window.innerWidth;
+        H = canvas.height = window.innerHeight;
+    }
 
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(reg => console.log('SW registered:', reg.scope))
-                    .catch(err => console.warn('SW registration failed:', err));
-            });
+    function rand(a, b) { return Math.random() * (b - a) + a; }
+
+    function createParticle() {
+        return {
+            x: rand(0, W), y: rand(0, H),
+            vx: rand(-0.15, 0.15), vy: rand(-0.15, 0.15),
+            r: rand(1, 2.5),
+            color: COLORS[Math.floor(Math.random() * COLORS.length)],
+            alpha: rand(0.2, 0.6),
+            pulse: rand(0, Math.PI * 2),
+            pulseSpeed: rand(0.005, 0.015)
+        };
+    }
+
+    function init() {
+        resize();
+        particles = Array.from({ length: 70 }, createParticle);
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, W, H);
+
+        // Draw connections
+        for (let i = 0; i < particles.length; i++) {
+            for (let j = i + 1; j < particles.length; j++) {
+                const dx = particles[i].x - particles[j].x;
+                const dy = particles[i].y - particles[j].y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist < 120) {
+                    ctx.beginPath();
+                    ctx.strokeStyle = particles[i].color;
+                    ctx.globalAlpha = (1 - dist / 120) * 0.08;
+                    ctx.lineWidth = 0.5;
+                    ctx.moveTo(particles[i].x, particles[i].y);
+                    ctx.lineTo(particles[j].x, particles[j].y);
+                    ctx.stroke();
+                }
+            }
         }
-    </script>
-</body>
 
+        // Draw particles
+        particles.forEach(p => {
+            p.pulse += p.pulseSpeed;
+            const pAlpha = p.alpha + Math.sin(p.pulse) * 0.15;
+            ctx.globalAlpha = Math.max(0, pAlpha);
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+            ctx.fillStyle = p.color;
+            ctx.fill();
+
+            // Move
+            p.x += p.vx;
+            p.y += p.vy;
+            if (p.x < 0) p.x = W;
+            if (p.x > W) p.x = 0;
+            if (p.y < 0) p.y = H;
+            if (p.y > H) p.y = 0;
+        });
+
+        ctx.globalAlpha = 1;
+        requestAnimationFrame(draw);
+    }
+
+    window.addEventListener('resize', resize);
+    init();
+    draw();
+})();
+</script>
+
+<!-- Service worker -->
+<script>
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+            .then(r => console.log('SW:', r.scope))
+            .catch(e => console.warn('SW failed:', e));
+    });
+}
+</script>
+</body>
 </html>
