@@ -341,6 +341,7 @@ class PDFMerger {
             this.mergeBtn.disabled = true;
 
             // Create new PDF document
+            const preserveBookmarks = document.getElementById('preserveBookmarks').checked;
             const mergedPdf = await PDFLib.PDFDocument.create();
 
             this.updateProgress(25, 'Preparing to merge...');
@@ -364,6 +365,28 @@ class PDFMerger {
             pdf2Pages.forEach((page) => mergedPdf.addPage(page));
 
             this.updateProgress(90, 'Finalizing merged PDF...');
+
+            // Copy bookmarks/outlines if requested
+            if (preserveBookmarks) {
+                try {
+                    const outline1 = this.pdf1.doc.catalog.lookupMaybe(
+                        PDFLib.PDFName.of('Outlines'), PDFLib.PDFDict
+                    );
+                    const outline2 = this.pdf2.doc.catalog.lookupMaybe(
+                        PDFLib.PDFName.of('Outlines'), PDFLib.PDFDict
+                    );
+
+                    // Copy first PDF's outline if it exists
+                    if (outline1) {
+                        const [copiedOutline] = await mergedPdf.copyPages(this.pdf1.doc, []);
+                        const outlineRef = await mergedPdf.context.obj(outline1);
+                        mergedPdf.catalog.set(PDFLib.PDFName.of('Outlines'), outlineRef);
+                    }
+                } catch (outlineError) {
+                    // Bookmarks are best-effort — don't fail the whole merge
+                    console.warn('Could not copy bookmarks:', outlineError);
+                }
+            }
 
             // Generate the final PDF
             this.mergedPdfBytes = await mergedPdf.save();
