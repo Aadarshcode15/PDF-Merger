@@ -493,3 +493,42 @@ footer {
         animation: none;
     }
 }
+
+.add-file-btn {
+    padding: 10px 24px;
+    background: transparent;
+    border: 1.5px dashed var(--border-color);
+    border-radius: var(--border-radius);
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.add-file-btn:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.slot-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.slot-remove {
+    background: none;
+    border: none;
+    color: var(--danger-color);
+    cursor: pointer;
+    font-size: 1.1rem;
+    padding: 6px;
+    border-radius: 6px;
+    transition: var(--transition);
+    flex-shrink: 0;
+}
+
+.slot-remove:hover {
+    background: rgba(220, 53, 69, 0.1);
+}

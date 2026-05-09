@@ -1,13 +1,14 @@
 class PDFMerger {
     constructor() {
-        this.pdf1 = null;
-        this.pdf2 = null;
+        this.pdfs = [];       // { doc, file } for each loaded PDF
+        this.slotCount = 0;   // increments for unique slot IDs
         this.mergedPdfBytes = null;
 
-        // Wait for PDF-lib to be available
         this.waitForPDFLib().then(() => {
             this.initializeElements();
             this.bindEvents();
+            this.addSlot();   // first slot
+            this.addSlot();   // second slot
         });
     }
 
@@ -17,298 +18,286 @@ class PDFMerger {
             await new Promise(resolve => setTimeout(resolve, 100));
             attempts++;
         }
-
         if (typeof PDFLib === 'undefined') {
             throw new Error('PDF-lib library failed to load');
         }
     }
 
     initializeElements() {
-        this.pdf1Input = document.getElementById('pdf1');
-        this.pdf2Input = document.getElementById('pdf2');
-        this.file1Info = document.getElementById('file1-info');
-        this.file2Info = document.getElementById('file2-info');
-        this.mergeBtn = document.getElementById('mergeBtn');
-        this.clearBtn = document.getElementById('clearBtn');
-        this.downloadBtn = document.getElementById('downloadBtn');
+        this.uploadSection = document.getElementById('uploadSection');
+        this.mergeBtn      = document.getElementById('mergeBtn');
+        this.clearBtn      = document.getElementById('clearBtn');
+        this.downloadBtn   = document.getElementById('downloadBtn');
         this.filenameInput = document.getElementById('filename');
         this.progressSection = document.getElementById('progressSection');
-        this.progressFill = document.getElementById('progressFill');
-        this.progressText = document.getElementById('progressText');
-        this.resultSection = document.getElementById('resultSection');
+        this.progressFill    = document.getElementById('progressFill');
+        this.progressText    = document.getElementById('progressText');
+        this.resultSection   = document.getElementById('resultSection');
+        this.addFileBtn      = document.getElementById('addFileBtn');
     }
 
     bindEvents() {
-        this.pdf1Input.addEventListener('change', (e) => this.handleFileUpload(e, 1));
-        this.pdf2Input.addEventListener('change', (e) => this.handleFileUpload(e, 2));
         this.mergeBtn.addEventListener('click', () => this.mergePDFs());
         this.clearBtn.addEventListener('click', () => this.clearAll());
         this.downloadBtn.addEventListener('click', () => this.downloadMergedPDF());
-
-        this.setupDragAndDrop();
+        this.addFileBtn.addEventListener('click', () => this.addSlot());
     }
 
-    setupDragAndDrop() {
-        const fileLabels = document.querySelectorAll('.file-label');
+    // --- Slot management ---
 
-        fileLabels.forEach((label, index) => {
-            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-                label.addEventListener(eventName, this.preventDefaults, false);
-            });
+    addSlot() {
+        const id = this.slotCount++;
+        this.pdfs.push(null);   // placeholder at index id
 
-            ['dragenter', 'dragover'].forEach(eventName => {
-                label.addEventListener(eventName, () => this.highlight(label), false);
-            });
+        const row = document.createElement('div');
+        row.className = 'slot-row';
+        row.dataset.slotId = id;
 
-            ['dragleave', 'drop'].forEach(eventName => {
-                label.addEventListener(eventName, () => this.unhighlight(label), false);
-            });
+        // Drop zone label
+        const label = document.createElement('label');
+        label.htmlFor = `pdf-slot-${id}`;
+        label.className = 'file-label';
+        label.style.flex = '1';
 
-            label.addEventListener('drop', (e) => this.handleDrop(e, index + 1), false);
+        const icon = document.createElement('i');
+        icon.className = 'fas fa-cloud-upload-alt';
+        icon.setAttribute('aria-hidden', 'true');
+
+        const span = document.createElement('span');
+        span.textContent = `Select PDF ${id + 1}`;
+
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.pdf';
+        input.className = 'file-input';
+        input.id = `pdf-slot-${id}`;
+        input.addEventListener('change', (e) => {
+            if (e.target.files[0]) this.processFileSelection(e.target.files[0], id);
+        });
+
+        label.appendChild(icon);
+        label.appendChild(span);
+        label.appendChild(input);
+
+        // File info strip
+        const info = document.createElement('div');
+        info.className = 'file-info';
+        info.id = `file-info-${id}`;
+
+        // Remove button (hidden on first two slots until a 3rd exists)
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'slot-remove';
+        removeBtn.title = 'Remove this slot';
+        removeBtn.innerHTML = '<i class="fas fa-times"></i>';
+        removeBtn.addEventListener('click', () => this.removeSlot(id));
+
+        const wrapper = document.createElement('div');
+        wrapper.style.flex = '1';
+        wrapper.appendChild(label);
+        wrapper.appendChild(info);
+
+        row.appendChild(wrapper);
+        row.appendChild(removeBtn);
+        this.uploadSection.appendChild(row);
+
+        this.setupDragAndDrop(label, id);
+        this.syncRemoveButtons();
+        this.updateMergeButton();
+    }
+
+    removeSlot(id) {
+        const row = this.uploadSection.querySelector(`[data-slot-id="${id}"]`);
+        if (row) row.remove();
+        this.pdfs[id] = null;
+        this.syncRemoveButtons();
+        this.updateMergeButton();
+    }
+
+    // Hide remove buttons when only 2 slots remain
+    syncRemoveButtons() {
+        const rows = this.uploadSection.querySelectorAll('.slot-row');
+        rows.forEach(row => {
+            const btn = row.querySelector('.slot-remove');
+            if (btn) btn.style.visibility = rows.length <= 2 ? 'hidden' : 'visible';
         });
     }
 
-    preventDefaults(e) {
-        e.preventDefault();
-        e.stopPropagation();
+    // --- Drag and drop ---
+
+    setupDragAndDrop(label, id) {
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(ev => {
+            label.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); });
+        });
+        ['dragenter', 'dragover'].forEach(ev => {
+            label.addEventListener(ev, () => this.highlight(label));
+        });
+        ['dragleave', 'drop'].forEach(ev => {
+            label.addEventListener(ev, () => this.unhighlight(label));
+        });
+        label.addEventListener('drop', e => {
+            const file = e.dataTransfer.files[0];
+            if (file) this.processFileSelection(file, id);
+        });
     }
 
-    highlight(element) {
-        element.style.borderColor = 'var(--primary-color)';
-        element.style.backgroundColor = 'var(--hover-bg)';
+    highlight(el) {
+        el.style.borderColor = 'var(--primary-color)';
+        el.style.backgroundColor = 'var(--hover-bg)';
     }
 
-    unhighlight(element) {
-        element.style.borderColor = 'var(--border-color)';
-        element.style.backgroundColor = 'var(--secondary-bg)';
+    unhighlight(el) {
+        el.style.borderColor = 'var(--border-color)';
+        el.style.backgroundColor = 'var(--secondary-bg)';
     }
 
-    handleDrop(e, fileNumber) {
-        const dt = e.dataTransfer;
-        const files = dt.files;
+    // --- File loading ---
 
-        if (files.length > 0) {
-            const file = files[0];
-            this.processFileSelection(file, fileNumber);
-        }
-    }
-
-    async handleFileUpload(event, fileNumber) {
-        const file = event.target.files[0];
-        if (file) {
-            await this.processFileSelection(file, fileNumber);
-        }
-    }
-
-    async processFileSelection(file, fileNumber) {
-        console.log('Processing file:', file.name, 'Type:', file.type, 'Size:', file.size);
-
-        // Basic validation
-        if (!file) {
-            this.showError('No file selected.');
+    async processFileSelection(file, id) {
+        if (!file) return;
+        if (file.size > 52428800) {
+            this.showError('File too large. Maximum size is 50MB.');
             return;
         }
-
-        // Check file size (50MB limit)
-        if (file.size > 52428800) { // 50MB
-            this.showError('File is too large. Please select a file smaller than 50MB.');
-            return;
-        }
-
-        // Check if file is empty
         if (file.size === 0) {
             this.showError('Selected file is empty.');
             return;
         }
 
-        // Show loading state
-        this.showLoadingState(fileNumber);
+        this.showLoadingState(id);
 
         try {
-            await this.loadPDF(file, fileNumber);
+            await this.loadPDF(file, id);
         } catch (error) {
-            console.error('Error processing file:', error);
-            this.resetFileState(fileNumber);
-
-            if (error.message.includes('Invalid PDF')) {
-                this.showError('This file is not a valid PDF. Please select a proper PDF file.');
-            } else if (error.message.includes('password') || error.message.includes('encrypted')) {
+            console.error('Error loading PDF:', error);
+            this.resetSlotState(id);
+            if (error.message.includes('password') || error.message.includes('encrypted')) {
                 this.showError('This PDF is password-protected. Please use an unprotected PDF.');
-            } else if (error.message.includes('corrupted')) {
-                this.showError('This PDF file appears to be corrupted. Please try a different file.');
+            } else if (error.message.includes('Invalid PDF')) {
+                this.showError('This file is not a valid PDF.');
             } else {
-                this.showError(`Error loading PDF: ${file.name}. Please try a different file.`);
+                this.showError(`Could not load "${file.name}". Please try another file.`);
             }
         }
     }
 
-    async loadPDF(file, fileNumber) {
+    async loadPDF(file, id) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
-
             reader.onload = async (e) => {
                 try {
                     const arrayBuffer = e.target.result;
                     const uint8Array = new Uint8Array(arrayBuffer);
 
-                    // Validate PDF header
                     if (!this.isValidPDFFile(uint8Array)) {
                         reject(new Error('Invalid PDF file format'));
                         return;
                     }
 
-                    // Load PDF with error handling
-                    let pdfDoc;
-                    try {
-                        pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer, {
-                            ignoreEncryption: false,
-                            parseSpeed: PDFLib.ParseSpeeds.Fastest,
-                            throwOnInvalidObject: false
-                        });
-                    } catch (pdfError) {
-                        console.error('PDF-lib error:', pdfError);
-                        if (pdfError.message.includes('password') || pdfError.message.includes('encrypted')) {
-                            reject(new Error('Password protected PDF'));
-                        } else {
-                            reject(new Error('Corrupted or invalid PDF'));
-                        }
-                        return;
-                    }
+                    const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer, {
+                        ignoreEncryption: false,
+                        parseSpeed: PDFLib.ParseSpeeds.Fastest,
+                        throwOnInvalidObject: false
+                    });
 
-                    // Verify the PDF has pages
-                    const pageCount = pdfDoc.getPageCount();
-                    if (pageCount === 0) {
+                    if (pdfDoc.getPageCount() === 0) {
                         reject(new Error('PDF has no pages'));
                         return;
                     }
 
-                    // Success - store the PDF
-                    if (fileNumber === 1) {
-                        this.pdf1 = { doc: pdfDoc, file: file };
-                        this.updateFileInfo(this.file1Info, file, pdfDoc);
-                        this.updateFileLabel(this.pdf1Input.parentElement.querySelector('.file-label'), file);
-                    } else {
-                        this.pdf2 = { doc: pdfDoc, file: file };
-                        this.updateFileInfo(this.file2Info, file, pdfDoc);
-                        this.updateFileLabel(this.pdf2Input.parentElement.querySelector('.file-label'), file);
-                    }
-
+                    this.pdfs[id] = { doc: pdfDoc, file };
+                    this.updateFileInfo(id, file, pdfDoc);
+                    this.updateFileLabel(id, file);
                     this.updateMergeButton();
                     resolve();
-
-                } catch (error) {
-                    console.error('File reading error:', error);
-                    reject(error);
+                } catch (err) {
+                    console.error('PDF load error:', err);
+                    reject(err);
                 }
             };
-
-            reader.onerror = () => {
-                reject(new Error('Error reading file'));
-            };
-
+            reader.onerror = () => reject(new Error('Error reading file'));
             reader.readAsArrayBuffer(file);
         });
     }
 
     isValidPDFFile(uint8Array) {
-        // Check for PDF signature at the beginning
-        const pdfSignature = [0x25, 0x50, 0x44, 0x46]; // %PDF
-
+        const sig = [0x25, 0x50, 0x44, 0x46];
         if (uint8Array.length < 4) return false;
-
-        for (let i = 0; i < pdfSignature.length; i++) {
-            if (uint8Array[i] !== pdfSignature[i]) {
-                return false;
-            }
-        }
-
-        return true;
+        return sig.every((byte, i) => uint8Array[i] === byte);
     }
 
-    showLoadingState(fileNumber) {
-        const label = fileNumber === 1 ?
-            this.pdf1Input.parentElement.querySelector('.file-label') :
-            this.pdf2Input.parentElement.querySelector('.file-label');
+    // --- UI state helpers ---
 
-        if (label) {
-            label.style.opacity = '0.7';
-            const span = label.querySelector('span');
-            const icon = label.querySelector('i');
-            if (span) span.textContent = 'Loading PDF...';
-            if (icon) icon.className = 'fas fa-spinner fa-spin';
-        }
+    showLoadingState(id) {
+        const label = this.uploadSection.querySelector(`[data-slot-id="${id}"] .file-label`);
+        if (!label) return;
+        label.style.opacity = '0.7';
+        label.querySelector('span').textContent = 'Loading PDF...';
+        label.querySelector('i').className = 'fas fa-spinner fa-spin';
     }
 
-    resetFileState(fileNumber) {
-        if (fileNumber === 1) {
-            this.pdf1 = null;
-            this.pdf1Input.value = '';
-            this.file1Info.classList.remove('show');
-            const label1 = this.pdf1Input.parentElement.querySelector('.file-label');
-            this.resetFileLabel(label1, 'Select First PDF');
-        } else {
-            this.pdf2 = null;
-            this.pdf2Input.value = '';
-            this.file2Info.classList.remove('show');
-            const label2 = this.pdf2Input.parentElement.querySelector('.file-label');
-            this.resetFileLabel(label2, 'Select Second PDF');
-        }
+    resetSlotState(id) {
+        this.pdfs[id] = null;
+        const row = this.uploadSection.querySelector(`[data-slot-id="${id}"]`);
+        if (!row) return;
+        const input = row.querySelector('input[type="file"]');
+        if (input) input.value = '';
+        const info = document.getElementById(`file-info-${id}`);
+        if (info) info.classList.remove('show');
+        this.resetFileLabel(id, `Select PDF ${id + 1}`);
         this.updateMergeButton();
     }
 
-    resetFileLabel(labelElement, text) {
-        if (labelElement) {
-            labelElement.classList.remove('success');
-            labelElement.style.opacity = '1';
-            const span = labelElement.querySelector('span');
-            const icon = labelElement.querySelector('i');
-            if (span) span.textContent = text;
-            if (icon) icon.className = 'fas fa-cloud-upload-alt';
-        }
+    resetFileLabel(id, text) {
+        const label = this.uploadSection.querySelector(`[data-slot-id="${id}"] .file-label`);
+        if (!label) return;
+        label.classList.remove('success');
+        label.style.opacity = '1';
+        label.querySelector('span').textContent = text;
+        label.querySelector('i').className = 'fas fa-cloud-upload-alt';
     }
 
-    updateFileInfo(infoElement, file, pdfDoc) {
-        const pageCount = pdfDoc.getPageCount();
-        const fileSize = this.formatFileSize(file.size);
+    updateFileInfo(id, file, pdfDoc) {
+        const info = document.getElementById(`file-info-${id}`);
+        if (!info) return;
 
-        // Clear previous content
-        infoElement.innerHTML = '';
+        info.innerHTML = '';
 
-        // Icon
         const icon = document.createElement('i');
         icon.className = 'fas fa-file-pdf';
         icon.style.cssText = 'color: #e74c3c; margin-right: 8px;';
         icon.setAttribute('aria-hidden', 'true');
 
-        // Filename — textContent ensures it's never parsed as HTML
         const nameEl = document.createElement('strong');
         nameEl.textContent = file.name;
 
-        // Line break
         const br = document.createElement('br');
 
-        // Page count + size
         const metaEl = document.createElement('span');
         metaEl.style.color = 'var(--text-secondary)';
-        metaEl.textContent = `${pageCount} page${pageCount !== 1 ? 's' : ''} • ${fileSize}`;
+        const pages = pdfDoc.getPageCount();
+        metaEl.textContent = `${pages} page${pages !== 1 ? 's' : ''} • ${this.formatFileSize(file.size)}`;
 
-        infoElement.appendChild(icon);
-        infoElement.appendChild(nameEl);
-        infoElement.appendChild(br);
-        infoElement.appendChild(metaEl);
-
-        infoElement.classList.add('show');
+        info.appendChild(icon);
+        info.appendChild(nameEl);
+        info.appendChild(br);
+        info.appendChild(metaEl);
+        info.classList.add('show');
     }
 
-    updateFileLabel(labelElement, file) {
-        if (labelElement) {
-            labelElement.classList.add('success');
-            labelElement.style.opacity = '1';
-            const span = labelElement.querySelector('span');
-            const icon = labelElement.querySelector('i');
-            if (span) span.textContent = file.name;
-            if (icon) icon.className = 'fas fa-check-circle';
-        }
+    updateFileLabel(id, file) {
+        const label = this.uploadSection.querySelector(`[data-slot-id="${id}"] .file-label`);
+        if (!label) return;
+        label.classList.add('success');
+        label.style.opacity = '1';
+        label.querySelector('span').textContent = file.name;
+        label.querySelector('i').className = 'fas fa-check-circle';
+    }
+
+    updateMergeButton() {
+        const loaded = this.pdfs.filter(Boolean);
+        const canMerge = loaded.length >= 2;
+        this.mergeBtn.disabled = !canMerge;
+        this.mergeBtn.style.opacity = canMerge ? '1' : '0.6';
     }
 
     formatFileSize(bytes) {
@@ -319,19 +308,12 @@ class PDFMerger {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
 
-    updateMergeButton() {
-        if (this.pdf1 && this.pdf2) {
-            this.mergeBtn.disabled = false;
-            this.mergeBtn.style.opacity = '1';
-        } else {
-            this.mergeBtn.disabled = true;
-            this.mergeBtn.style.opacity = '0.6';
-        }
-    }
+    // --- Merge ---
 
     async mergePDFs() {
-        if (!this.pdf1 || !this.pdf2) {
-            this.showError('Please select both PDF files before merging.');
+        const loadedPdfs = this.pdfs.filter(Boolean);
+        if (loadedPdfs.length < 2) {
+            this.showError('Please select at least two PDF files before merging.');
             return;
         }
 
@@ -343,51 +325,35 @@ class PDFMerger {
             const preserveBookmarks = document.getElementById('preserveBookmarks').checked;
             const mergedPdf = await PDFLib.PDFDocument.create();
 
-            const pdf1Count = this.pdf1.doc.getPageCount();
-            const pdf2Count = this.pdf2.doc.getPageCount();
-            const totalPages = pdf1Count + pdf2Count;
+            const totalPages = loadedPdfs.reduce((sum, p) => sum + p.doc.getPageCount(), 0);
             let copiedPages = 0;
 
             this.updateProgress(0, 'Starting merge...');
 
-            // Copy pages from first PDF one by one for real progress
-            for (let i = 0; i < pdf1Count; i++) {
-                const [page] = await mergedPdf.copyPages(this.pdf1.doc, [i]);
-                mergedPdf.addPage(page);
-                copiedPages++;
-                const percent = Math.round((copiedPages / totalPages) * 85); // up to 85%
-                this.updateProgress(
-                    percent,
-                    `Copying page ${copiedPages} of ${totalPages}...`
-                );
-            }
-
-            // Copy pages from second PDF one by one
-            for (let i = 0; i < pdf2Count; i++) {
-                const [page] = await mergedPdf.copyPages(this.pdf2.doc, [i]);
-                mergedPdf.addPage(page);
-                copiedPages++;
-                const percent = Math.round((copiedPages / totalPages) * 85);
-                this.updateProgress(
-                    percent,
-                    `Copying page ${copiedPages} of ${totalPages}...`
-                );
+            for (const pdf of loadedPdfs) {
+                const count = pdf.doc.getPageCount();
+                for (let i = 0; i < count; i++) {
+                    const [page] = await mergedPdf.copyPages(pdf.doc, [i]);
+                    mergedPdf.addPage(page);
+                    copiedPages++;
+                    const percent = Math.round((copiedPages / totalPages) * 85);
+                    this.updateProgress(percent, `Copying page ${copiedPages} of ${totalPages}...`);
+                }
             }
 
             this.updateProgress(90, 'Finalizing merged PDF...');
 
-            // Preserve bookmarks (best-effort, first PDF only)
             if (preserveBookmarks) {
                 try {
-                    const outline1 = this.pdf1.doc.catalog.lookupMaybe(
+                    const outline = loadedPdfs[0].doc.catalog.lookupMaybe(
                         PDFLib.PDFName.of('Outlines'), PDFLib.PDFDict
                     );
-                    if (outline1) {
-                        const outlineRef = await mergedPdf.context.obj(outline1);
+                    if (outline) {
+                        const outlineRef = await mergedPdf.context.obj(outline);
                         mergedPdf.catalog.set(PDFLib.PDFName.of('Outlines'), outlineRef);
                     }
-                } catch (outlineError) {
-                    console.warn('Could not copy bookmarks:', outlineError);
+                } catch (e) {
+                    console.warn('Could not copy bookmarks:', e);
                 }
             }
 
@@ -410,6 +376,8 @@ class PDFMerger {
         }
     }
 
+    // --- Progress & result ---
+
     showProgress() {
         this.progressSection.style.display = 'block';
         this.resultSection.style.display = 'none';
@@ -428,131 +396,92 @@ class PDFMerger {
         this.resultSection.style.display = 'block';
     }
 
+    // --- Download ---
+
     downloadMergedPDF() {
         if (!this.mergedPdfBytes) {
             this.showError('No merged PDF available for download.');
             return;
         }
-
         try {
             const filename = this.filenameInput.value.trim() || 'merged-document';
             const blob = new Blob([this.mergedPdfBytes], { type: 'application/pdf' });
             const url = URL.createObjectURL(blob);
-
             const a = document.createElement('a');
             a.href = url;
             a.download = filename.endsWith('.pdf') ? filename : filename + '.pdf';
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
-
             URL.revokeObjectURL(url);
 
-            // Success feedback
-            const originalText = this.downloadBtn.innerHTML;
+            const original = this.downloadBtn.innerHTML;
             this.downloadBtn.innerHTML = '<i class="fas fa-check"></i> Downloaded!';
-            this.downloadBtn.style.background = 'var(--success-color)';
-
-            setTimeout(() => {
-                this.downloadBtn.innerHTML = originalText;
-                this.downloadBtn.style.background = '';
-            }, 2000);
-
+            setTimeout(() => { this.downloadBtn.innerHTML = original; }, 2000);
         } catch (error) {
             console.error('Download error:', error);
             this.showError('Error downloading the merged PDF.');
         }
     }
 
-    clearAll() {
-        // Reset everything
-        this.pdf1Input.value = '';
-        this.pdf2Input.value = '';
-        this.pdf1 = null;
-        this.pdf2 = null;
-        this.mergedPdfBytes = null;
+    // --- Clear ---
 
-        // Reset UI elements
-        this.file1Info.classList.remove('show');
-        this.file2Info.classList.remove('show');
+    clearAll() {
+        this.pdfs = [];
+        this.mergedPdfBytes = null;
+        this.uploadSection.innerHTML = '';
+        this.slotCount = 0;
         this.resultSection.style.display = 'none';
         this.progressSection.style.display = 'none';
-
-        // Reset file labels
-        const label1 = this.pdf1Input.parentElement.querySelector('.file-label');
-        const label2 = this.pdf2Input.parentElement.querySelector('.file-label');
-        this.resetFileLabel(label1, 'Select First PDF');
-        this.resetFileLabel(label2, 'Select Second PDF');
-        this.unhighlight(label1);
-        this.unhighlight(label2);
-
-        // Reset filename
         this.filenameInput.value = 'merged-document';
+        this.addSlot();
+        this.addSlot();
         this.updateMergeButton();
 
-        // Feedback
-        const originalText = this.clearBtn.innerHTML;
+        const original = this.clearBtn.innerHTML;
         this.clearBtn.innerHTML = '<i class="fas fa-check"></i> Cleared!';
-        setTimeout(() => {
-            this.clearBtn.innerHTML = originalText;
-        }, 1500);
+        setTimeout(() => { this.clearBtn.innerHTML = original; }, 1500);
     }
 
-    showError(message) {
-        // Remove existing errors
-        const existing = document.querySelectorAll('.error-toast');
-        existing.forEach(el => el.remove());
+    // --- Error toast ---
 
-        // Create error toast
+    showError(message) {
+        document.querySelectorAll('.error-toast').forEach(el => el.remove());
         const toast = document.createElement('div');
         toast.className = 'error-toast';
         toast.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #dc3545;
-            color: white;
-            padding: 15px 20px;
-            border-radius: 8px;
+            position: fixed; top: 20px; right: 20px;
+            background: #dc3545; color: white;
+            padding: 15px 20px; border-radius: 8px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-            z-index: 1000;
-            max-width: 400px;
-            animation: slideIn 0.3s ease;
+            z-index: 1000; max-width: 400px;
             font-family: inherit;
         `;
-
-        toast.innerHTML = `
-            <i class="fas fa-exclamation-triangle" style="margin-right: 10px;"></i>
-            ${message}
-        `;
-
+        const icon = document.createElement('i');
+        icon.className = 'fas fa-exclamation-triangle';
+        icon.style.marginRight = '10px';
+        icon.setAttribute('aria-hidden', 'true');
+        const text = document.createTextNode(message);
+        toast.appendChild(icon);
+        toast.appendChild(text);
         document.body.appendChild(toast);
 
-        // Auto remove after 5 seconds
         setTimeout(() => {
-            if (toast.parentNode) {
-                toast.style.animation = 'slideOut 0.3s ease';
-                setTimeout(() => {
-                    if (toast.parentNode) {
-                        toast.parentNode.removeChild(toast);
-                    }
-                }, 300);
-            }
+            if (toast.parentNode) toast.parentNode.removeChild(toast);
         }, 5000);
     }
 }
 
-// Initialize when page loads
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         new PDFMerger();
     } catch (error) {
         console.error('Failed to initialize PDF Merger:', error);
         document.body.innerHTML = `
-            <div style="text-align: center; padding: 50px; color: #dc3545; font-family: Arial, sans-serif;">
+            <div style="text-align:center;padding:50px;color:#dc3545;font-family:Arial,sans-serif;">
                 <h2>Error Loading PDF Merger</h2>
                 <p>The PDF library failed to load. Please refresh the page and try again.</p>
-                <button onclick="location.reload()" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                <button onclick="location.reload()" style="padding:10px 20px;background:#007bff;color:white;border:none;border-radius:5px;cursor:pointer;">
                     Refresh Page
                 </button>
             </div>
