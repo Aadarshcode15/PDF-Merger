@@ -475,3 +475,21 @@ footer {
 .merge-btn.loading {
     animation: pulse 1.5s infinite;
 }
+
+@media (prefers-reduced-motion: reduce) {
+
+    main::before,
+    main::after {
+        animation: none;
+        background: var(--primary-color);
+        opacity: 0.4;
+    }
+
+    .merge-btn.loading {
+        animation: none;
+    }
+
+    .ag-brand {
+        animation: none;
+    }
+}
