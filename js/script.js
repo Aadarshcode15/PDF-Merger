@@ -25,15 +25,15 @@ class PDFMerger {
 
     initializeElements() {
         this.uploadSection = document.getElementById('uploadSection');
-        this.mergeBtn      = document.getElementById('mergeBtn');
-        this.clearBtn      = document.getElementById('clearBtn');
-        this.downloadBtn   = document.getElementById('downloadBtn');
+        this.mergeBtn = document.getElementById('mergeBtn');
+        this.clearBtn = document.getElementById('clearBtn');
+        this.downloadBtn = document.getElementById('downloadBtn');
         this.filenameInput = document.getElementById('filename');
         this.progressSection = document.getElementById('progressSection');
-        this.progressFill    = document.getElementById('progressFill');
-        this.progressText    = document.getElementById('progressText');
-        this.resultSection   = document.getElementById('resultSection');
-        this.addFileBtn      = document.getElementById('addFileBtn');
+        this.progressFill = document.getElementById('progressFill');
+        this.progressText = document.getElementById('progressText');
+        this.resultSection = document.getElementById('resultSection');
+        this.addFileBtn = document.getElementById('addFileBtn');
     }
 
     bindEvents() {
